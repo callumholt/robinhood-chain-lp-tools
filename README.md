@@ -113,26 +113,41 @@ These will silently corrupt your numbers if you don't handle them:
 4. **Busy pools emit ~1M swaps a day.** Fold each log into running totals and drop
    it; buffering a day of swaps exhausts the heap and the process dies silently.
 
-## Sample result
+## Sample results
 
-±10% range, $10k position, measured over 24h on the v4 WETH/USDG 0.046% pool
-(`0x54f78839…03d0ba32`), validated against on-chain fee growth at ratio 1.0000:
+All measured, all cross-checked against on-chain `feeGrowthGlobal`.
+
+### 24h, v4 WETH/USDG 0.046% — ±10% range, $10k
 
 ```
 swaps            50,010  (50,010 inside your range)
 volume (in-legs) $12.23M    GeckoTerminal says $12.02M
 LP fees, whole pool $5.6k
 mean fee rate    0.0577%  (per-swap, from the event)
-time in range    100.00%  (block-weighted, measured not modelled)
-
+time in range    100.00%
 fees earned      $29.32
-annualised APR   107.00%
-share of pool fees 0.52%
+annualised APR   107.00%      validation ratio 1.0000
 ```
 
-Note what the estimator said about the same pool and range before the replay:
-115%, from a quoted fee rate and a third-party volume figure. Close enough to
-look right, far enough to be worth measuring.
+The estimator's guess for the same pool and range was 115%. Close enough to look
+right, far enough to be worth measuring.
+
+### Matched 2h window — why volume is the wrong selector
+
+Same range (±10%), same size ($10k), same two hours:
+
+| Pool | Swaps | Volume | Your fees | APR | Your share |
+|---|---|---|---|---|---|
+| v3 USDG/WETH **0.01%** | 97,328 | $39.14M | $1.61 | 70.6% | 0.05% |
+| v4 WETH/USDG **0.046%** | 3,109 | $0.58M | $1.52 | 66.5% | 0.57% |
+
+The v3 pool pushed **68× the volume** and paid the same $10k position essentially
+the same fees. A 0.01% tier with a 25% protocol cut nets 0.0075% per trade, and
+that thin margin is shared across far more liquidity — your slice there is 0.05%
+versus 0.57%. Fee tier and crowding beat raw flow.
+
+Note also how much the window matters: the v3 pool annualised to 96.9% over a
+different 24h and 70.6% here. Single-window figures are samples, not forecasts.
 
 ## Limitations — read before acting on any of this
 
@@ -148,6 +163,11 @@ look right, far enough to be worth measuring.
   carries no out-of-range haircut; over a month it usually will.
 - Within a single swap the price can cross ticks and change liquidity. The event
   reports the final values, so very large swaps are attributed slightly coarsely.
+- **The public RPC has a throughput ceiling of roughly a few hundred thousand
+  swaps per run.** A 24h replay of a ~1M-swap/day pool needs several hundred
+  `eth_getLogs` calls and the public endpoint hard-fails on rate limiting partway
+  through, whatever the pacing. Quieter pools finish 24h in about 7 minutes. Past
+  that ceiling, shorten `--hours` or point `ROBINHOOD_RPC_URL` at a paid endpoint.
 
 Not financial advice. Verify anything before putting money behind it.
 
